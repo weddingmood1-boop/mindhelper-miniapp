@@ -1,7 +1,5 @@
-// v4 cache bust
-// ===============================
-// CONFIG
-// ===============================
+// v5 cache bust
+
 const API_BASE = window.location.origin;
 
 let tg = window.Telegram?.WebApp;
@@ -21,7 +19,7 @@ if (tg) {
   }
 }
 
-// DEV MODE для веба
+// DEV MODE для браузера
 if (!userId) {
   userId = 999999;
   console.log("DEV MODE enabled");
@@ -57,7 +55,10 @@ function bindNavButtons() {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindNavButtons();
-  showScreen("home");
+
+  // ⭐ В TG сразу открываем чат
+  if (tg) showScreen("chat");
+  else showScreen("home");
 });
 
 // ===============================
@@ -254,7 +255,6 @@ function stopRecording(){
   if (robotCaption) robotCaption.innerText = "Думаю…";
 }
 
-// ---- FIXED sendVoice (no duplicates, no undefined) ----
 async function sendVoice(blob) {
   if (!blob) return;
 

@@ -8,11 +8,11 @@
   <!-- Telegram SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- отключаем favicon, чтобы не спамило логами -->
+  <!-- отключаем favicon -->
   <link rel="icon" href="data:,">
 
-  <!-- cache-bust для TG -->
-  <link rel="stylesheet" href="./styles.css?v=4" />
+  <!-- cache-bust -->
+  <link rel="stylesheet" href="./styles.css?v=5" />
 </head>
 <body>
   <div id="app">
@@ -26,8 +26,8 @@
     <!-- SCREENS -->
     <main class="screens">
 
-      <!-- HOME -->
-      <section class="screen active" id="screen-home">
+      <!-- HOME (оставляем, но по умолчанию в TG не показываем) -->
+      <section class="screen" id="screen-home">
         <div class="grid">
           <button class="card" data-nav="diary">
             <div class="card-icon">📓</div>
@@ -109,7 +109,7 @@
         <div class="hint">Выбери тему — начнётся чат</div>
       </section>
 
-      <!-- CHAT -->
+      <!-- CHAT (главный экран) -->
       <section class="screen" id="screen-chat">
         <div class="screen-header chat-head">
           <h2>🤖 Консультация</h2>
@@ -118,12 +118,14 @@
 
         <!-- ROBOT -->
         <div class="robot-wrap">
-          <img id="robot-avatar" src="./robot.png?v=4" alt="MindHelper Robot"/>
+          <img id="robot-avatar" src="./robot.png?v=5" alt="MindHelper Robot"/>
           <div class="robot-caption" id="robot-caption">Я слушаю тебя…</div>
         </div>
 
+        <!-- CHAT -->
         <div id="chat-box" class="chat-box"></div>
 
+        <!-- INPUT -->
         <div class="chat-input">
           <input id="chat-text" placeholder="Напиши, что чувствуешь..." />
           <button id="voice-btn" class="btn" title="Зажми и говори">🎙</button>
@@ -143,16 +145,16 @@
 
     <!-- TABBAR -->
     <nav class="tabbar">
-      <button class="tab active" data-nav="home">🏠</button>
+      <button class="tab" data-nav="home">🏠</button>
       <button class="tab" data-nav="diary">📓</button>
       <button class="tab" data-nav="scenarios">⚡</button>
-      <button class="tab" data-nav="chat">🤖</button>
+      <button class="tab active" data-nav="chat">🤖</button>
       <button class="tab" data-nav="progress">📈</button>
     </nav>
 
   </div>
 
-  <!-- cache-bust для TG -->
-  <script src="./app.js?v=4"></script>
+  <!-- cache-bust -->
+  <script src="./app.js?v=5"></script>
 </body>
 </html>
