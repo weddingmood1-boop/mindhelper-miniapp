@@ -1,244 +1,217 @@
-// Telegram init
-const tg = window.Telegram?.WebApp;
+// ===============================
+// CONFIG
+// ===============================
+
+const API_BASE = window.location.origin; 
+// Для продакшена Render используется тот же origin
+// Для Телеграма origin = https://mindhelper-miniapp.onrender.com
+
+let tg = window.Telegram?.WebApp;
+let userId = null;
+
+// ===============================
+// INIT TELEGRAM
+// ===============================
 if (tg) {
-  tg.expand();
+    tg.ready();
+    tg.expand();
+    try {
+        const initDataUnsafe = tg.initDataUnsafe;
+        if (initDataUnsafe?.user?.id) {
+            userId = initDataUnsafe.user.id;
+        }
+    } catch (e) {
+        console.log("TG Init Error:", e);
+    }
 }
 
-// Backend URL (боевой)
-const API = "https://mindhelper-miniapp.onrender.com";
+// DEV MODE локально
+if (!userId) {
+    userId = 999999;
+    console.log("DEV MODE enabled");
+}
 
-let currentScenario = null;
+// ===============================
+// NAVIGATION
+// ===============================
 
-// --- Robot mouth animation ---
-let audioCtx = null;
-let analyser = null;
-let mouthEl = null;
-let mouthAnimId = null;
+const screens = document.querySelectorAll(".screen");
+function showScreen(id) {
+    screens.forEach(s => s.classList.remove("active"));
+    document.getElementById(`screen-${id}`).classList.add("active");
 
-function attachMouthElement(){
-  const img = document.getElementById("robot-avatar");
-  if (!img) return;
-
-  fetch(img.src)
-    .then(r => r.text())
-    .then(svgText => {
-      const wrap = img.parentElement;
-      wrap.innerHTML = svgText + `<div class="robot-caption" id="robot-caption">Я слушаю тебя…</div>`;
-      mouthEl = wrap.querySelector("#mouth");
+    document.querySelectorAll(".tab").forEach(t => {
+        if (t.dataset.nav === id) t.classList.add("active");
+        else t.classList.remove("active");
     });
 }
 
-function startMouthSync(audioElement){
-  if (!mouthEl) return;
+document.querySelectorAll("[data-nav]").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const nav = btn.dataset.nav;
+        if (nav) showScreen(nav);
+    });
+});
 
-  if (!audioCtx){
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-  }
+// Default
+showScreen("home");
 
-  const source = audioCtx.createMediaElementSource(audioElement);
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
+// ===============================
+// DIARY — LIST
+// ===============================
 
-  const data = new Uint8Array(analyser.frequencyBinCount);
+const diaryListEl = document.getElementById("diary-list");
+const btnAddEntry = document.getElementById("btn-add-entry");
 
-  function tick(){
-    analyser.getByteTimeDomainData(data);
+btnAddEntry.addEventListener("click", () => showScreen("diary-add"));
 
-    let sum = 0;
-    for (let i=0;i<data.length;i++){
-      const v = (data[i]-128)/128;
-      sum += v*v;
+async function loadDiary() {
+    diaryListEl.innerHTML = `<div class="hint">Загрузка...</div>`;
+
+    try {
+        const resp = await fetch(`${API_BASE}/diary/list?user_id=${userId}`);
+        const data = await resp.json();
+
+        if (!data.length) {
+            diaryListEl.innerHTML = `<div class="hint">Записей пока нет</div>`;
+            return;
+        }
+
+        diaryListEl.innerHTML = "";
+
+        data.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "list-item";
+            div.innerHTML = `
+                <div class="item-emotion"> ${item.emotion} (${item.intensity}/10) </div>
+                <div class="item-small">${item.situation}</div>
+                <div class="item-date">${new Date(item.created_at).toLocaleString()}</div>
+            `;
+            diaryListEl.appendChild(div);
+        });
+
+    } catch (e) {
+        diaryListEl.innerHTML = `<div class="hint">Ошибка загрузки</div>`;
     }
-    const rms = Math.sqrt(sum/data.length);
-
-    const open = Math.min(3.2, 1 + rms*12);
-    mouthEl.setAttribute("transform", `scale(1, ${open}) translate(0, ${-8*(open-1)})`);
-
-    mouthAnimId = requestAnimationFrame(tick);
-  }
-
-  tick();
 }
 
-function stopMouthSync(){
-  if (mouthAnimId) cancelAnimationFrame(mouthAnimId);
-  mouthAnimId = null;
-  if (mouthEl){
-    mouthEl.setAttribute("transform", "scale(1,1)");
-  }
-}
+document.querySelector("[data-nav=diary]").addEventListener("click", loadDiary);
 
-// ----- NAVIGATION -----
-const screens = {
-  home: document.getElementById("screen-home"),
-  diary: document.getElementById("screen-diary"),
-  diaryAdd: document.getElementById("screen-diary-add"),
-  scenarios: document.getElementById("screen-scenarios"),
-  chat: document.getElementById("screen-chat"),
-  progress: document.getElementById("screen-progress")
-};
+// ===============================
+// DIARY — ADD ENTRY
+// ===============================
 
-function showScreen(name){
-  Object.values(screens).forEach(s => s.classList.remove("active"));
-  screens[name].classList.add("active");
+const diaryForm = document.getElementById("diary-form");
 
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  const tab = document.querySelector(`.tab[data-nav="${name}"]`);
-  if (tab) tab.classList.add("active");
-}
+diaryForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-// tabbar and cards nav
-document.querySelectorAll("[data-nav]").forEach(el=>{
-  el.addEventListener("click", ()=>{
-    const nav = el.dataset.nav;
-    if (nav === "diary") loadDiary();
-    showScreen(nav);
-  });
+    const payload = {
+        user_id: userId,
+        emotion: document.getElementById("emotion").value,
+        intensity: document.getElementById("intensity").value,
+        situation: document.getElementById("situation").value,
+        thoughts: document.getElementById("thoughts").value,
+        body: document.getElementById("body").value
+    };
+
+    try {
+        const resp = await fetch(`${API_BASE}/diary/add`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        if (resp.ok) {
+            showScreen("diary");
+            loadDiary();
+        } else {
+            alert("Ошибка сохранения");
+        }
+    } catch (e) {
+        alert("Ошибка связи с сервером");
+    }
 });
 
-document.getElementById("btn-add-entry").addEventListener("click", ()=>{
-  showScreen("diaryAdd");
+// ===============================
+// SCENARIOS
+// ===============================
+
+document.querySelectorAll("[data-scenario]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+        const prompt = btn.dataset.scenario;
+        openChat(prompt);
+    });
 });
 
-// ----- DIARY -----
-async function loadDiary(){
-  const list = document.getElementById("diary-list");
-  list.innerHTML = "Загрузка...";
+// ===============================
+// CHAT — TEXT
+// ===============================
 
-  const initData = tg?.initData || "";
-  const r = await fetch(API + "/diary", {
-    headers: { "X-Telegram-InitData": initData }
-  });
-  const data = await r.json();
-
-  if (!data.items.length){
-    list.innerHTML = "<div class='hint'>Пока нет записей.</div>";
-    return;
-  }
-
-  list.innerHTML = data.items.map(i => `
-    <div class="entry">
-      <div class="entry-top">
-        <div>${i.created_at}</div>
-        <div>${i.intensity}/10</div>
-      </div>
-      <div class="entry-emotion">${i.emotion}</div>
-      <div class="entry-block"><b>Ситуация:</b> ${i.situation}</div>
-      <div class="entry-block"><b>Мысли:</b> ${i.thoughts}</div>
-      <div class="entry-block"><b>Тело:</b> ${i.body}</div>
-    </div>
-  `).join("");
-}
-
-document.getElementById("diary-form").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-
-  const payload = {
-    emotion: document.getElementById("emotion").value.trim(),
-    intensity: Number(document.getElementById("intensity").value),
-    situation: document.getElementById("situation").value.trim(),
-    thoughts: document.getElementById("thoughts").value.trim(),
-    body: document.getElementById("body").value.trim()
-  };
-
-  const initData = tg?.initData || "";
-  await fetch(API + "/diary", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Telegram-InitData": initData
-    },
-    body: JSON.stringify(payload)
-  });
-
-  e.target.reset();
-  await loadDiary();
-  showScreen("diary");
-});
-
-// ----- SCENARIOS -> open chat with scenario context -----
-document.querySelectorAll("[data-scenario]").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    currentScenario = btn.dataset.scenario;
-    clearChat();
-    addAiMsg("Выбран сценарий. Напиши, что у тебя происходит — и я помогу.");
-    showScreen("chat");
-  });
-});
-
-// ----- CHAT -----
 const chatBox = document.getElementById("chat-box");
 const chatInput = document.getElementById("chat-text");
 const chatSend = document.getElementById("chat-send");
+const btnClearChat = document.getElementById("btn-clear-chat");
+const robotCaption = document.getElementById("robot-caption");
 
-function addUserMsg(text){
-  chatBox.insertAdjacentHTML("beforeend", `<div class="msg user">${text}</div>`);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-function addAiMsg(text){
-  chatBox.insertAdjacentHTML("beforeend", `<div class="msg ai">${text}</div>`);
-  chatBox.scrollTop = chatBox.scrollHeight;
+let chatHistory = [];
+let currentScenario = null;
+
+function appendMessage(role, text) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (role === "user" ? "me" : "bot");
+    wrap.innerText = text;
+    chatBox.appendChild(wrap);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function clearChat(){
-  chatBox.innerHTML = "";
+function openChat(scenario = null) {
+    currentScenario = scenario;
+    showScreen("chat");
 }
 
-document.getElementById("btn-clear-chat").addEventListener("click", ()=>{
-  currentScenario = null;
-  clearChat();
-  addAiMsg("Чат сброшен. Можешь начать заново.");
+btnClearChat.addEventListener("click", () => {
+    chatHistory = [];
+    chatBox.innerHTML = "";
 });
 
-chatSend.addEventListener("click", sendChat);
-chatInput.addEventListener("keydown", (e)=>{
-  if (e.key === "Enter") sendChat();
+chatSend.addEventListener("click", sendTextMessage);
+chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendTextMessage();
 });
 
-async function sendChat(){
-  const text = chatInput.value.trim();
-  if (!text) return;
-  chatInput.value = "";
+async function sendTextMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    chatInput.value = "";
 
-  addUserMsg(text);
+    appendMessage("user", text);
+    robotCaption.innerText = "Думаю…";
 
-  const caption = document.getElementById("robot-caption");
-  if (caption) caption.textContent = "Думаю…";
+    chatHistory.push({role: "user", content: text});
 
-  addAiMsg("Секундочку, думаю...");
+    const payload = {
+        user_id: userId,
+        message: text,
+        scenario: currentScenario,
+        history: chatHistory
+    };
 
-  const initData = tg?.initData || "";
-  const r = await fetch(API + "/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Telegram-InitData": initData
-    },
-    body: JSON.stringify({
-      text,
-      scenario: currentScenario
-    })
-  });
+    try {
+        const resp = await fetch(`${API_BASE}/chat/text`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
 
-  const data = await r.json();
+        const data = await resp.json();
 
-  // удалить "думаю..."
-  chatBox.querySelector(".msg.ai:last-child").remove();
-  addAiMsg(data.answer);
+        appendMessage("assistant", data.reply);
+        robotCaption.innerText = "Я слушаю тебя…";
 
-  // MVP: “фейковая” анимация речи (пока нет реального аудио)
-  if (caption) caption.textContent = "Говорю…";
-  let fakeAudio = new Audio(); // пустышка
-  startMouthSync(fakeAudio);
-
-  setTimeout(()=>{
-    stopMouthSync();
-    if (caption) caption.textContent = "Я слушаю тебя…";
-  }, 1500);
+        chatHistory.push({role: "assistant", content: data.reply});
+    } catch (e) {
+        appendMessage("assistant", "Ошибка связи.");
+        robotCaption.innerText = "Ошибка";
+    }
 }
-
-// initial
-showScreen("home");
-attachMouthElement();
