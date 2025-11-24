@@ -5,7 +5,7 @@ if (tg) {
 }
 
 // Backend URL (локально)
-const API = "http://127.0.0.1:8000";
+const API = "https://mindhelper-miniapp.onrender.com";
 
 let currentScenario = null;
 
