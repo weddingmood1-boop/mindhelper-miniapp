@@ -184,8 +184,8 @@ body{
   background: var(--secondary-bg);
   border:1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius);
-  min-height:50vh;
-  max-height:60vh;
+  min-height:38vh;
+  max-height:52vh;
   overflow:auto;
 }
 .msg{
@@ -218,6 +218,25 @@ body{
   background: var(--bg);
   border:1px solid rgba(255,255,255,0.1);
   color:var(--text);
+}
+
+/* Robot */
+.robot-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  margin-bottom:10px;
+}
+#robot-avatar{
+  width:55%;
+  max-width:260px;
+  height:auto;
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.35));
+}
+.robot-caption{
+  font-size:13px;
+  color:var(--hint);
 }
 
 /* Tabbar */

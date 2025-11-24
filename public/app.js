@@ -4,10 +4,71 @@ if (tg) {
   tg.expand();
 }
 
-// Backend URL (локально)
+// Backend URL (боевой)
 const API = "https://mindhelper-miniapp.onrender.com";
 
 let currentScenario = null;
+
+// --- Robot mouth animation ---
+let audioCtx = null;
+let analyser = null;
+let mouthEl = null;
+let mouthAnimId = null;
+
+function attachMouthElement(){
+  const img = document.getElementById("robot-avatar");
+  if (!img) return;
+
+  fetch(img.src)
+    .then(r => r.text())
+    .then(svgText => {
+      const wrap = img.parentElement;
+      wrap.innerHTML = svgText + `<div class="robot-caption" id="robot-caption">Я слушаю тебя…</div>`;
+      mouthEl = wrap.querySelector("#mouth");
+    });
+}
+
+function startMouthSync(audioElement){
+  if (!mouthEl) return;
+
+  if (!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+  }
+
+  const source = audioCtx.createMediaElementSource(audioElement);
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+
+  function tick(){
+    analyser.getByteTimeDomainData(data);
+
+    let sum = 0;
+    for (let i=0;i<data.length;i++){
+      const v = (data[i]-128)/128;
+      sum += v*v;
+    }
+    const rms = Math.sqrt(sum/data.length);
+
+    const open = Math.min(3.2, 1 + rms*12);
+    mouthEl.setAttribute("transform", `scale(1, ${open}) translate(0, ${-8*(open-1)})`);
+
+    mouthAnimId = requestAnimationFrame(tick);
+  }
+
+  tick();
+}
+
+function stopMouthSync(){
+  if (mouthAnimId) cancelAnimationFrame(mouthAnimId);
+  mouthAnimId = null;
+  if (mouthEl){
+    mouthEl.setAttribute("transform", "scale(1,1)");
+  }
+}
 
 // ----- NAVIGATION -----
 const screens = {
@@ -92,7 +153,6 @@ document.getElementById("diary-form").addEventListener("submit", async (e)=>{
     body: JSON.stringify(payload)
   });
 
-  // clear form
   e.target.reset();
   await loadDiary();
   showScreen("diary");
@@ -143,6 +203,10 @@ async function sendChat(){
   chatInput.value = "";
 
   addUserMsg(text);
+
+  const caption = document.getElementById("robot-caption");
+  if (caption) caption.textContent = "Думаю…";
+
   addAiMsg("Секундочку, думаю...");
 
   const initData = tg?.initData || "";
@@ -159,10 +223,22 @@ async function sendChat(){
   });
 
   const data = await r.json();
+
   // удалить "думаю..."
   chatBox.querySelector(".msg.ai:last-child").remove();
   addAiMsg(data.answer);
+
+  // MVP: “фейковая” анимация речи (пока нет реального аудио)
+  if (caption) caption.textContent = "Говорю…";
+  let fakeAudio = new Audio(); // пустышка
+  startMouthSync(fakeAudio);
+
+  setTimeout(()=>{
+    stopMouthSync();
+    if (caption) caption.textContent = "Я слушаю тебя…";
+  }, 1500);
 }
 
 // initial
 showScreen("home");
+attachMouthElement();
