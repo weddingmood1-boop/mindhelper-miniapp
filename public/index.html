@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>MindHelper</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">MindHelper</div>
+      <div class="subtitle">ИИ-психолог 24/7</div>
+    </header>
+
+    <!-- Screens -->
+    <main class="screens">
+      <!-- HOME -->
+      <section class="screen active" id="screen-home">
+        <div class="grid">
+          <button class="card" data-nav="diary">
+            <div class="card-icon">📓</div>
+            <div class="card-title">Дневник эмоций</div>
+            <div class="card-text">Записывай чувства и смотри динамику</div>
+          </button>
+
+          <button class="card" data-nav="scenarios">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">Быстрые решения</div>
+            <div class="card-text">Тревога, паника, отношения, самооценка</div>
+          </button>
+
+          <button class="card" data-nav="chat">
+            <div class="card-icon">💬</div>
+            <div class="card-title">Консультация</div>
+            <div class="card-text">Свободный чат с психологом</div>
+          </button>
+
+          <button class="card muted" data-nav="progress">
+            <div class="card-icon">📈</div>
+            <div class="card-title">Прогресс</div>
+            <div class="card-text">Скоро здесь будет отчёт недели</div>
+          </button>
+        </div>
+      </section>
+
+      <!-- DIARY LIST -->
+      <section class="screen" id="screen-diary">
+        <div class="screen-header">
+          <h2>📓 Дневник эмоций</h2>
+          <button class="btn" id="btn-add-entry">+ Записать эмоцию</button>
+        </div>
+
+        <div id="diary-list" class="list"></div>
+      </section>
+
+      <!-- DIARY ADD -->
+      <section class="screen" id="screen-diary-add">
+        <div class="screen-header">
+          <h2>✍️ Новая запись</h2>
+          <button class="btn ghost" data-nav="diary">Назад</button>
+        </div>
+
+        <form id="diary-form" class="form">
+          <label>Эмоция</label>
+          <input id="emotion" placeholder="тревога, грусть, стыд..." required />
+
+          <label>Интенсивность (1–10)</label>
+          <input id="intensity" type="number" min="1" max="10" placeholder="8" required />
+
+          <label>Ситуация</label>
+          <textarea id="situation" placeholder="что произошло?" required></textarea>
+
+          <label>Мысли</label>
+          <textarea id="thoughts" placeholder="какие мысли появились?" required></textarea>
+
+          <label>Тело</label>
+          <textarea id="body" placeholder="как ощущалось в теле?" required></textarea>
+
+          <button type="submit" class="btn primary">Сохранить</button>
+        </form>
+      </section>
+
+      <!-- SCENARIOS -->
+      <section class="screen" id="screen-scenarios">
+        <div class="screen-header">
+          <h2>⚡ Быстрые решения</h2>
+        </div>
+
+        <div class="grid">
+          <button class="card small" data-scenario="scenario.anxiety">
+            <div class="card-title">😟 Тревога</div>
+          </button>
+          <button class="card small" data-scenario="scenario.panic_sos">
+            <div class="card-title">🚨 Паника SOS</div>
+          </button>
+          <button class="card small" data-scenario="scenario.relationships">
+            <div class="card-title">❤️ Отношения</div>
+          </button>
+          <button class="card small" data-scenario="scenario.selfesteem">
+            <div class="card-title">🪞 Самооценка</div>
+          </button>
+          <button class="card small" data-scenario="scenario.burnout">
+            <div class="card-title">🔥 Выгорание</div>
+          </button>
+          <button class="card small" data-scenario="scenario.procrastination">
+            <div class="card-title">⏳ Прокрастинация</div>
+          </button>
+        </div>
+
+        <div class="hint">
+          Выбери тему — откроется чат внутри сценария.
+        </div>
+      </section>
+
+      <!-- CHAT -->
+      <section class="screen" id="screen-chat">
+        <div class="screen-header chat-head">
+          <h2>💬 Консультация</h2>
+          <button class="btn ghost" id="btn-clear-chat">Сбросить</button>
+        </div>
+
+        <div id="chat-box" class="chat-box"></div>
+
+        <div class="chat-input">
+          <input id="chat-text" placeholder="Напиши, что чувствуешь..." />
+          <button id="chat-send" class="btn primary">Отправить</button>
+        </div>
+      </section>
+
+      <!-- PROGRESS -->
+      <section class="screen" id="screen-progress">
+        <div class="screen-header">
+          <h2>📈 Прогресс</h2>
+        </div>
+        <div class="hint">
+          Здесь скоро появится аналитика эмоций за неделю.
+        </div>
+      </section>
+    </main>
+
+    <!-- Tab bar -->
+    <nav class="tabbar">
+      <button class="tab active" data-nav="home">🏠</button>
+      <button class="tab" data-nav="diary">📓</button>
+      <button class="tab" data-nav="scenarios">⚡</button>
+      <button class="tab" data-nav="chat">💬</button>
+      <button class="tab" data-nav="progress">📈</button>
+    </nav>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
