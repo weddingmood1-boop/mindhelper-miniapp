@@ -1,3 +1,10 @@
+// v6 cache bust — TG must reload
+
+const API_BASE = window.location.origin;
+
+let tg = window.Telegram?.WebApp;
+let userId = null;
+
 // v5 cache bust
 
 const API_BASE = window.location.origin;
