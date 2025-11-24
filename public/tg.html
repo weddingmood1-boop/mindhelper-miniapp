@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>MindHelper</title>
+
+  <!-- Telegram SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- отключаем favicon -->
+  <link rel="icon" href="data:,">
+
+  <!-- cache-bust -->
+  <link rel="stylesheet" href="./styles.css?v=7" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="build">BUILD TG v8</div>
+      <div class="logo">MindHelper</div>
+      <div class="subtitle">ИИ-психолог 24/7</div>
+    </header>
+
+    <!-- SCREENS -->
+    <main class="screens">
+
+      <!-- HOME (оставляем, но по умолчанию в TG не показываем) -->
+      <section class="screen" id="screen-home">
+        <div class="grid">
+          <button class="card" data-nav="diary">
+            <div class="card-icon">📓</div>
+            <div class="card-title">Дневник эмоций</div>
+            <div class="card-text">Фиксируй чувства каждый день</div>
+          </button>
+
+          <button class="card" data-nav="scenarios">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">Быстрые решения</div>
+            <div class="card-text">Тревога, паника, отношения</div>
+          </button>
+
+          <button class="card" data-nav="chat">
+            <div class="card-icon">🤖</div>
+            <div class="card-title">Консультация</div>
+            <div class="card-text">Поговори с ИИ-психологом</div>
+          </button>
+
+          <button class="card muted" data-nav="progress">
+            <div class="card-icon">📈</div>
+            <div class="card-title">Прогресс</div>
+            <div class="card-text">Статистика за неделю</div>
+          </button>
+        </div>
+      </section>
+
+      <!-- DIARY LIST -->
+      <section class="screen" id="screen-diary">
+        <div class="screen-header">
+          <h2>📓 Дневник эмоций</h2>
+          <button class="btn" id="btn-add-entry">+ Записать эмоцию</button>
+        </div>
+        <div id="diary-list" class="list"></div>
+      </section>
+
+      <!-- DIARY ADD -->
+      <section class="screen" id="screen-diary-add">
+        <div class="screen-header">
+          <h2>✍️ Новая запись</h2>
+          <button class="btn ghost" data-nav="diary">Назад</button>
+        </div>
+
+        <form id="diary-form" class="form">
+          <label>Эмоция</label>
+          <input id="emotion" required placeholder="тревога, грусть, стыд..." />
+
+          <label>Интенсивность (1–10)</label>
+          <input id="intensity" type="number" min="1" max="10" required />
+
+          <label>Ситуация</label>
+          <textarea id="situation" required></textarea>
+
+          <label>Мысли</label>
+          <textarea id="thoughts" required></textarea>
+
+          <label>Тело</label>
+          <textarea id="body" required></textarea>
+
+          <button class="btn primary" type="submit">Сохранить</button>
+        </form>
+      </section>
+
+      <!-- SCENARIOS -->
+      <section class="screen" id="screen-scenarios">
+        <div class="screen-header">
+          <h2>⚡ Быстрые решения</h2>
+        </div>
+
+        <div class="grid">
+          <button class="card small" data-scenario="scenario.anxiety">😟 Тревога</button>
+          <button class="card small" data-scenario="scenario.panic_sos">🚨 Паника</button>
+          <button class="card small" data-scenario="scenario.relationships">❤️ Отношения</button>
+          <button class="card small" data-scenario="scenario.selfesteem">🪞 Самооценка</button>
+          <button class="card small" data-scenario="scenario.burnout">🔥 Выгорание</button>
+          <button class="card small" data-scenario="scenario.procrastination">⏳ Прокрастинация</button>
+        </div>
+
+        <div class="hint">Выбери тему — начнётся чат</div>
+      </section>
+
+      <!-- CHAT (главный экран) -->
+      <section class="screen" id="screen-chat">
+        <div class="screen-header chat-head">
+          <h2>🤖 Консультация</h2>
+          <button class="btn ghost" id="btn-clear-chat">Сброс</button>
+        </div>
+
+        <!-- ROBOT -->
+        <div class="robot-wrap">
+          <img id="robot-avatar" src="./robot.png?v=7" alt="MindHelper Robot"/>
+          <div class="robot-caption" id="robot-caption">Я слушаю тебя…</div>
+        </div>
+
+        <!-- CHAT -->
+        <div id="chat-box" class="chat-box"></div>
+
+        <!-- INPUT -->
+        <div class="chat-input">
+          <input id="chat-text" placeholder="Напиши, что чувствуешь..." />
+          <button id="voice-btn" class="btn" title="Зажми и говори">🎙</button>
+          <button id="chat-send" class="btn primary">Отправить</button>
+        </div>
+      </section>
+
+      <!-- PROGRESS -->
+      <section class="screen" id="screen-progress">
+        <div class="screen-header">
+          <h2>📈 Прогресс</h2>
+        </div>
+        <div class="hint">Скоро появится анализ недели</div>
+      </section>
+
+    </main>
+
+    <!-- TABBAR -->
+    <nav class="tabbar">
+      <button class="tab" data-nav="home">🏠</button>
+      <button class="tab" data-nav="diary">📓</button>
+      <button class="tab" data-nav="scenarios">⚡</button>
+      <button class="tab active" data-nav="chat">🤖</button>
+      <button class="tab" data-nav="progress">📈</button>
+    </nav>
+
+  </div>
+
+  <!-- cache-bust -->
+  <script src="./app.js?v=7"></script>
+</body>
+</html>
