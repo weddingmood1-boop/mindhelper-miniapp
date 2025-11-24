@@ -1,20 +1,11 @@
-// v6 cache bust — TG must reload
+// v7 cache bust — TG must reload
 
 const API_BASE = window.location.origin;
 
 let tg = window.Telegram?.WebApp;
 let userId = null;
 
-// v5 cache bust
-
-const API_BASE = window.location.origin;
-
-let tg = window.Telegram?.WebApp;
-let userId = null;
-
-// ===============================
 // INIT TELEGRAM
-// ===============================
 if (tg) {
   tg.ready();
   tg.expand();
@@ -26,15 +17,13 @@ if (tg) {
   }
 }
 
-// DEV MODE для браузера
+// DEV MODE for web
 if (!userId) {
   userId = 999999;
   console.log("DEV MODE enabled");
 }
 
-// ===============================
 // NAVIGATION
-// ===============================
 const screens = document.querySelectorAll(".screen");
 
 function showScreen(id) {
@@ -53,7 +42,6 @@ function bindNavButtons() {
     btn.addEventListener("click", () => {
       const nav = btn.dataset.nav;
       if (!nav) return;
-
       if (nav === "diary") loadDiary();
       showScreen(nav);
     });
@@ -62,33 +50,25 @@ function bindNavButtons() {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindNavButtons();
-
-  // ⭐ В TG сразу открываем чат
   if (tg) showScreen("chat");
   else showScreen("home");
 });
 
-// ===============================
-// DIARY — LIST
-// ===============================
+// DIARY
 const diaryListEl = document.getElementById("diary-list");
 const btnAddEntry = document.getElementById("btn-add-entry");
-
 if (btnAddEntry) btnAddEntry.addEventListener("click", () => showScreen("diary-add"));
 
 async function loadDiary() {
   if (!diaryListEl) return;
   diaryListEl.innerHTML = `<div class="hint">Загрузка...</div>`;
-
   try {
     const resp = await fetch(`${API_BASE}/diary/list?user_id=${userId}`);
     const data = await resp.json();
-
     if (!data.length) {
       diaryListEl.innerHTML = `<div class="hint">Записей пока нет</div>`;
       return;
     }
-
     diaryListEl.innerHTML = "";
     data.forEach(item => {
       const div = document.createElement("div");
@@ -106,15 +86,11 @@ async function loadDiary() {
   }
 }
 
-// ===============================
-// DIARY — ADD ENTRY
-// ===============================
+// DIARY ADD
 const diaryForm = document.getElementById("diary-form");
-
 if (diaryForm) {
   diaryForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const payload = {
       user_id: userId,
       emotion: document.getElementById("emotion").value,
@@ -123,14 +99,12 @@ if (diaryForm) {
       thoughts: document.getElementById("thoughts").value,
       body: document.getElementById("body").value
     };
-
     try {
       const resp = await fetch(`${API_BASE}/diary/add`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
       });
-
       if (resp.ok) {
         showScreen("diary");
         loadDiary();
@@ -141,9 +115,7 @@ if (diaryForm) {
   });
 }
 
-// ===============================
 // SCENARIOS
-// ===============================
 document.querySelectorAll("[data-scenario]").forEach(btn => {
   btn.addEventListener("click", () => {
     const prompt = btn.dataset.scenario;
@@ -151,9 +123,7 @@ document.querySelectorAll("[data-scenario]").forEach(btn => {
   });
 });
 
-// ===============================
-// CHAT — TEXT + VOICE
-// ===============================
+// CHAT
 const chatBox = document.getElementById("chat-box");
 const chatInput = document.getElementById("chat-text");
 const chatSend  = document.getElementById("chat-send");
@@ -214,7 +184,6 @@ async function sendTextMessage() {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(payload)
     });
-
     const data = await resp.json();
     appendMessage("assistant", data.reply);
     if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
@@ -225,7 +194,7 @@ async function sendTextMessage() {
   }
 }
 
-// ---------- VOICE RECORDING ----------
+// VOICE
 let mediaRecorder = null;
 let chunks = [];
 let isRecording = false;
@@ -247,7 +216,6 @@ async function startRecording(){
   mediaRecorder.onstop = async () => {
     stream.getTracks().forEach(t => t.stop());
     voiceBtn?.classList.remove("recording");
-
     const blob = new Blob(chunks, { type: "audio/webm" });
     await sendVoice(blob);
   };
@@ -264,7 +232,6 @@ function stopRecording(){
 
 async function sendVoice(blob) {
   if (!blob) return;
-
   if (window._voiceSending) return;
   window._voiceSending = true;
 
@@ -277,12 +244,8 @@ async function sendVoice(blob) {
   form.append("history", JSON.stringify(chatHistory));
 
   let data = null;
-
   try {
-    const resp = await fetch(`${API_BASE}/chat/voice`, {
-      method: "POST",
-      body: form
-    });
+    const resp = await fetch(`${API_BASE}/chat/voice`, { method: "POST", body: form });
     data = await resp.json();
   } catch (e) {
     appendMessage("assistant", "Ошибка связи с сервером");
@@ -313,11 +276,9 @@ async function sendVoice(blob) {
   window._voiceSending = false;
 }
 
-// удержание на кнопке
 if (voiceBtn){
   voiceBtn.addEventListener("mousedown", startRecording);
   voiceBtn.addEventListener("touchstart", (e)=>{ e.preventDefault(); startRecording(); });
-
   voiceBtn.addEventListener("mouseup", stopRecording);
   voiceBtn.addEventListener("mouseleave", stopRecording);
   voiceBtn.addEventListener("touchend", stopRecording);
