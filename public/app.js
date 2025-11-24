@@ -2,9 +2,9 @@
 // CONFIG
 // ===============================
 
-const API_BASE = window.location.origin; 
-// Для продакшена Render используется тот же origin
-// Для Телеграма origin = https://mindhelper-miniapp.onrender.com
+const API_BASE = window.location.origin;
+// Render: https://mindhelper-miniapp.onrender.com
+// Local:  http://127.0.0.1:8000
 
 let tg = window.Telegram?.WebApp;
 let userId = null;
@@ -13,144 +13,140 @@ let userId = null;
 // INIT TELEGRAM
 // ===============================
 if (tg) {
-    tg.ready();
-    tg.expand();
-    try {
-        const initDataUnsafe = tg.initDataUnsafe;
-        if (initDataUnsafe?.user?.id) {
-            userId = initDataUnsafe.user.id;
-        }
-    } catch (e) {
-        console.log("TG Init Error:", e);
-    }
+  tg.ready();
+  tg.expand();
+  try {
+    const initDataUnsafe = tg.initDataUnsafe;
+    if (initDataUnsafe?.user?.id) userId = initDataUnsafe.user.id;
+  } catch (e) {
+    console.log("TG Init Error:", e);
+  }
 }
 
 // DEV MODE локально
 if (!userId) {
-    userId = 999999;
-    console.log("DEV MODE enabled");
+  userId = 999999;
+  console.log("DEV MODE enabled");
 }
 
 // ===============================
 // NAVIGATION
 // ===============================
-
 const screens = document.querySelectorAll(".screen");
-function showScreen(id) {
-    screens.forEach(s => s.classList.remove("active"));
-    document.getElementById(`screen-${id}`).classList.add("active");
 
-    document.querySelectorAll(".tab").forEach(t => {
-        if (t.dataset.nav === id) t.classList.add("active");
-        else t.classList.remove("active");
-    });
+function showScreen(id) {
+  screens.forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(`screen-${id}`);
+  if (el) el.classList.add("active");
+
+  document.querySelectorAll(".tab").forEach(t => {
+    if (t.dataset.nav === id) t.classList.add("active");
+    else t.classList.remove("active");
+  });
 }
 
 document.querySelectorAll("[data-nav]").forEach(btn => {
-    btn.addEventListener("click", () => {
-        const nav = btn.dataset.nav;
-        if (nav) showScreen(nav);
-    });
+  btn.addEventListener("click", () => {
+    const nav = btn.dataset.nav;
+    if (nav) {
+      if (nav === "diary") loadDiary();
+      showScreen(nav);
+    }
+  });
 });
 
-// Default
 showScreen("home");
 
 // ===============================
 // DIARY — LIST
 // ===============================
-
 const diaryListEl = document.getElementById("diary-list");
 const btnAddEntry = document.getElementById("btn-add-entry");
 
-btnAddEntry.addEventListener("click", () => showScreen("diary-add"));
+if (btnAddEntry) btnAddEntry.addEventListener("click", () => showScreen("diary-add"));
 
 async function loadDiary() {
-    diaryListEl.innerHTML = `<div class="hint">Загрузка...</div>`;
+  if (!diaryListEl) return;
+  diaryListEl.innerHTML = `<div class="hint">Загрузка...</div>`;
 
-    try {
-        const resp = await fetch(`${API_BASE}/diary/list?user_id=${userId}`);
-        const data = await resp.json();
+  try {
+    const resp = await fetch(`${API_BASE}/diary/list?user_id=${userId}`);
+    const data = await resp.json();
 
-        if (!data.length) {
-            diaryListEl.innerHTML = `<div class="hint">Записей пока нет</div>`;
-            return;
-        }
-
-        diaryListEl.innerHTML = "";
-
-        data.forEach(item => {
-            const div = document.createElement("div");
-            div.className = "list-item";
-            div.innerHTML = `
-                <div class="item-emotion"> ${item.emotion} (${item.intensity}/10) </div>
-                <div class="item-small">${item.situation}</div>
-                <div class="item-date">${new Date(item.created_at).toLocaleString()}</div>
-            `;
-            diaryListEl.appendChild(div);
-        });
-
-    } catch (e) {
-        diaryListEl.innerHTML = `<div class="hint">Ошибка загрузки</div>`;
+    if (!data.length) {
+      diaryListEl.innerHTML = `<div class="hint">Записей пока нет</div>`;
+      return;
     }
-}
 
-document.querySelector("[data-nav=diary]").addEventListener("click", loadDiary);
+    diaryListEl.innerHTML = "";
+    data.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "list-item";
+      div.innerHTML = `
+        <div class="item-emotion">${item.emotion} (${item.intensity}/10)</div>
+        <div class="item-small">${item.situation}</div>
+        <div class="item-date">${new Date(item.created_at).toLocaleString()}</div>
+      `;
+      diaryListEl.appendChild(div);
+    });
+  } catch (e) {
+    console.log(e);
+    diaryListEl.innerHTML = `<div class="hint">Ошибка загрузки</div>`;
+  }
+}
 
 // ===============================
 // DIARY — ADD ENTRY
 // ===============================
-
 const diaryForm = document.getElementById("diary-form");
 
-diaryForm.addEventListener("submit", async (e) => {
+if (diaryForm) {
+  diaryForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const payload = {
-        user_id: userId,
-        emotion: document.getElementById("emotion").value,
-        intensity: document.getElementById("intensity").value,
-        situation: document.getElementById("situation").value,
-        thoughts: document.getElementById("thoughts").value,
-        body: document.getElementById("body").value
+      user_id: userId,
+      emotion: document.getElementById("emotion").value,
+      intensity: document.getElementById("intensity").value,
+      situation: document.getElementById("situation").value,
+      thoughts: document.getElementById("thoughts").value,
+      body: document.getElementById("body").value
     };
 
     try {
-        const resp = await fetch(`${API_BASE}/diary/add`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(payload)
-        });
+      const resp = await fetch(`${API_BASE}/diary/add`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
 
-        if (resp.ok) {
-            showScreen("diary");
-            loadDiary();
-        } else {
-            alert("Ошибка сохранения");
-        }
+      if (resp.ok) {
+        showScreen("diary");
+        loadDiary();
+      } else alert("Ошибка сохранения");
     } catch (e) {
-        alert("Ошибка связи с сервером");
+      alert("Ошибка связи с сервером");
     }
-});
+  });
+}
 
 // ===============================
 // SCENARIOS
 // ===============================
-
 document.querySelectorAll("[data-scenario]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-        const prompt = btn.dataset.scenario;
-        openChat(prompt);
-    });
+  btn.addEventListener("click", () => {
+    const prompt = btn.dataset.scenario;
+    openChat(prompt);
+  });
 });
 
 // ===============================
-// CHAT — TEXT
+// CHAT — TEXT + VOICE
 // ===============================
-
 const chatBox = document.getElementById("chat-box");
 const chatInput = document.getElementById("chat-text");
-const chatSend = document.getElementById("chat-send");
+const chatSend  = document.getElementById("chat-send");
+const voiceBtn  = document.getElementById("voice-btn");
 const btnClearChat = document.getElementById("btn-clear-chat");
 const robotCaption = document.getElementById("robot-caption");
 
@@ -158,60 +154,177 @@ let chatHistory = [];
 let currentScenario = null;
 
 function appendMessage(role, text) {
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (role === "user" ? "me" : "bot");
-    wrap.innerText = text;
-    chatBox.appendChild(wrap);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  if (!chatBox) return;
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + (role === "user" ? "me" : "bot");
+  wrap.innerText = text;
+  chatBox.appendChild(wrap);
+  chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function openChat(scenario = null) {
-    currentScenario = scenario;
-    showScreen("chat");
+  currentScenario = scenario;
+  showScreen("chat");
 }
 
-btnClearChat.addEventListener("click", () => {
+if (btnClearChat) {
+  btnClearChat.addEventListener("click", () => {
     chatHistory = [];
-    chatBox.innerHTML = "";
-});
+    if (chatBox) chatBox.innerHTML = "";
+    if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
+  });
+}
 
-chatSend.addEventListener("click", sendTextMessage);
-chatInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") sendTextMessage();
+if (chatSend) chatSend.addEventListener("click", sendTextMessage);
+if (chatInput) chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendTextMessage();
 });
 
 async function sendTextMessage() {
-    const text = chatInput.value.trim();
-    if (!text) return;
-    chatInput.value = "";
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
 
-    appendMessage("user", text);
-    robotCaption.innerText = "Думаю…";
+  appendMessage("user", text);
+  if (robotCaption) robotCaption.innerText = "Думаю…";
 
-    chatHistory.push({role: "user", content: text});
+  chatHistory.push({role: "user", content: text});
 
-    const payload = {
-        user_id: userId,
-        message: text,
-        scenario: currentScenario,
-        history: chatHistory
-    };
+  const payload = {
+    user_id: userId,
+    message: text,
+    scenario: currentScenario,
+    history: chatHistory
+  };
+
+  try {
+    const resp = await fetch(`${API_BASE}/chat/text`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json();
+    if (data.error) {
+      appendMessage("assistant", data.message || "Ошибка голосового ввода");
+      if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
+      return;
+    }
+
+    appendMessage("assistant", data.reply);
+    if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
+    chatHistory.push({role: "assistant", content: data.reply});
+  } catch (e) {
+    appendMessage("assistant", "Ошибка связи с сервером.");
+    if (robotCaption) robotCaption.innerText = "Ошибка";
+  }
+}
+
+// ---------- VOICE RECORDING ----------
+let mediaRecorder = null;
+let chunks = [];
+let isRecording = false;
+
+async function startRecording(){
+  if (isRecording) return;
+  isRecording = true;
+  chunks = [];
+  voiceBtn?.classList.add("recording");
+  if (robotCaption) robotCaption.innerText = "Слушаю тебя… говори";
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    voiceBtn?.classList.remove("recording");
+
+    const blob = new Blob(chunks, { type: "audio/webm" });
+    await sendVoice(blob);
+  };
+
+  mediaRecorder.start();
+}
+
+function stopRecording(){
+  if (!isRecording) return;
+  isRecording = false;
+  if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  if (robotCaption) robotCaption.innerText = "Думаю…";
+}
+
+async function sendVoice(blob) {
+    if (!blob) return;
+
+    // предотвращаем двойной вызов
+    if (window._voiceSending) return;
+    window._voiceSending = true;
+
+    appendMessage("user", "🎙 Голосовое сообщение отправлено");
+
+    if (robotCaption) robotCaption.innerText = "Слушаю…";
+
+    const form = new FormData();
+    form.append("audio", blob, "voice.webm");
+    form.append("user_id", userId);
+    form.append("scenario", currentScenario || "");
+    form.append("history", JSON.stringify(chatHistory));
+
+    let data = null;
 
     try {
-        const resp = await fetch(`${API_BASE}/chat/text`, {
+        const resp = await fetch(`${API_BASE}/chat/voice`, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(payload)
+            body: form
         });
 
-        const data = await resp.json();
+        data = await resp.json();
 
-        appendMessage("assistant", data.reply);
-        robotCaption.innerText = "Я слушаю тебя…";
-
-        chatHistory.push({role: "assistant", content: data.reply});
-    } catch (e) {
-        appendMessage("assistant", "Ошибка связи.");
-        robotCaption.innerText = "Ошибка";
+    } catch (err) {
+        appendMessage("assistant", "Ошибка связи с сервером");
+        window._voiceSending = false;
+        return;
     }
+
+    // если ошибка STT
+    if (data.error) {
+        appendMessage("assistant", data.message || "Ошибка голосового сообщения");
+        robotCaption.innerText = "Я слушаю тебя…";
+        window._voiceSending = false;
+        return;
+    }
+
+    // вывод текста
+    appendMessage("assistant", data.reply);
+    chatHistory.push({ role: "assistant", content: data.reply });
+
+    // озвучка
+    if (data.audio_url) {
+        const audio = new Audio(data.audio_url);
+        audio.play().catch(() => {});
+    }
+
+    robotCaption.innerText = "Я слушаю тебя…";
+    window._voiceSending = false;
+}
+
+  }catch(e){
+    console.log(e);
+    appendMessage("assistant", "Ошибка голосового запроса.");
+    if (robotCaption) robotCaption.innerText = "Ошибка";
+  }
+}
+
+// удержание на кнопке
+if (voiceBtn){
+  voiceBtn.addEventListener("mousedown", startRecording);
+  voiceBtn.addEventListener("touchstart", (e)=>{ e.preventDefault(); startRecording(); });
+
+  voiceBtn.addEventListener("mouseup", stopRecording);
+  voiceBtn.addEventListener("mouseleave", stopRecording);
+  voiceBtn.addEventListener("touchend", stopRecording);
 }

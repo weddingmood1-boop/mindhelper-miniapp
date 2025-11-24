@@ -1,175 +1,226 @@
-import os
-import hmac
-import hashlib
-from urllib.parse import parse_qsl
+import os, json, uuid
+from datetime import datetime
+from fastapi import BackgroundTasks
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-
-import aiosqlite
-from openai import OpenAI
 from dotenv import load_dotenv
+import aiosqlite
 
-# ---- env ----
-load_dotenv()  # берём ключи из корневого .env
+from openai import OpenAI
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI()
 
 DB_PATH = "psybot.sqlite3"
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI()
 
-# чтобы фронт мог ходить на бэкенд локально
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# раздаём фронт
-app.mount("/", StaticFiles(directory="public", html=True), name="public")
-
-
-# ---- Telegram initData validation ----
-def validate_init_data(init_data: str, bot_token: str) -> dict:
-    """
-    Проверка подписи initData по правилам Telegram.
-    https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-    """
-    if not init_data:
-        raise HTTPException(401, "Missing initData")
-
-    data = dict(parse_qsl(init_data, strict_parsing=True))
-    hash_recv = data.pop("hash", None)
-    if not hash_recv:
-        raise HTTPException(401, "No hash in initData")
-
-    check_string = "\n".join([f"{k}={v}" for k, v in sorted(data.items())])
-
-    secret = hmac.new(
-        key=b"WebAppData",
-        msg=bot_token.encode(),
-        digestmod=hashlib.sha256
-    ).digest()
-
-    hash_calc = hmac.new(
-        key=secret,
-        msg=check_string.encode(),
-        digestmod=hashlib.sha256
-    ).hexdigest()
-
-    if hash_calc != hash_recv:
-        raise HTTPException(401, "Invalid initData")
-
-    # user info в JSON строке
-    user_json = data.get("user")
-    return {"raw": data, "user": user_json}
-
-
-async def get_user_id(init_data: str) -> int:
-    valid = validate_init_data(init_data, BOT_TOKEN)
-    # user приходит как JSON-строка, но чтобы не парсить в MVP:
-    # возьмём id через простой поиск
-    uj = valid["raw"].get("user", "")
-    # выглядит примерно так: {"id":123,"first_name":"..."}
-    # вытащим id грубо
-    import json
-    user = json.loads(uj)
-    return int(user["id"])
-
-
-# ---- models ----
-class DiaryIn(BaseModel):
-    emotion: str
-    intensity: int
-    situation: str
-    thoughts: str
-    body: str
-
-class ChatIn(BaseModel):
-    text: str
-    scenario: str | None = None
-
-
-# ---- diary endpoints ----
-@app.get("/diary")
-async def diary_get(x_telegram_initdata: str = Header(default="")):
-    user_id = await get_user_id(x_telegram_initdata)
-
+# ---------- DB ----------
+async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute("""
-            SELECT emotion, intensity, situation, thoughts, body, created_at
-            FROM diary_entries
-            WHERE user_id=?
-            ORDER BY created_at DESC
-            LIMIT 30
-        """, (user_id,))
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS diary(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            emotion TEXT,
+            intensity INTEGER,
+            situation TEXT,
+            thoughts TEXT,
+            body TEXT,
+            created_at TEXT
+        )
+        """)
+        await db.commit()
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
+
+# ---------- HELPERS ----------
+SYSTEM_PROMPT = """Ты MindHelper — дружелюбный, очень тактичный ИИ-психолог.
+Работаешь в стилях CBT/ACT, даёшь короткие безопасные рекомендации.
+Не ставишь диагнозы.
+Если видишь риск (суицид, самоповреждение, психоз, тяжелая депрессия/паника),
+мягко рекомендуй обратиться к врачу/специалисту.
+Отвечай на русском, эмпатично, без морализаторства."""
+
+def build_messages(history, user_text, scenario=None):
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if scenario:
+        msgs.append({"role": "system", "content": f"Сценарий: {scenario}. Учитывай его в ответе."})
+
+    if history:
+        for h in history[-10:]:
+            if isinstance(h, dict) and "role" in h and "content" in h:
+                msgs.append({"role": h["role"], "content": h["content"]})
+
+    msgs.append({"role": "user", "content": user_text})
+    return msgs
+
+# ---------- DIARY ----------
+@app.get("/diary/list")
+async def diary_list(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT emotion,intensity,situation,thoughts,body,created_at "
+            "FROM diary WHERE user_id=? ORDER BY id DESC LIMIT 50",
+            (user_id,)
+        )
         rows = await cur.fetchall()
 
-    items = [
-        {
+    items = []
+    for r in rows:
+        items.append({
             "emotion": r[0],
             "intensity": r[1],
             "situation": r[2],
             "thoughts": r[3],
             "body": r[4],
-            "created_at": r[5]
-        }
-        for r in rows
-    ]
-    return {"items": items}
+            "created_at": r[5],
+        })
+    return items
 
-
-@app.post("/diary")
-async def diary_post(payload: DiaryIn, x_telegram_initdata: str = Header(default="")):
-    user_id = await get_user_id(x_telegram_initdata)
+@app.post("/diary/add")
+async def diary_add(payload: dict):
+    required = ["user_id", "emotion", "intensity", "situation", "thoughts", "body"]
+    for k in required:
+        if k not in payload:
+            raise HTTPException(400, f"Missing {k}")
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
-            INSERT INTO diary_entries (user_id, emotion, intensity, situation, thoughts, body)
-            VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO diary(user_id,emotion,intensity,situation,thoughts,body,created_at)
+        VALUES(?,?,?,?,?,?,?)
         """, (
-            user_id,
-            payload.emotion,
-            payload.intensity,
-            payload.situation,
-            payload.thoughts,
-            payload.body
+            int(payload["user_id"]),
+            payload["emotion"],
+            int(payload["intensity"]),
+            payload["situation"],
+            payload["thoughts"],
+            payload["body"],
+            datetime.utcnow().isoformat()
         ))
         await db.commit()
 
     return {"ok": True}
 
+# ---------- TEXT CHAT ----------
+@app.post("/chat/text")
+async def chat_text(payload: dict):
+    text = payload.get("message", "")
+    scenario = payload.get("scenario") or None
+    history = payload.get("history") or []
 
-# ---- chat endpoint ----
-@app.post("/chat")
-async def chat_post(payload: ChatIn, x_telegram_initdata: str = Header(default="")):
-    user_id = await get_user_id(x_telegram_initdata)
+    if not text:
+        raise HTTPException(400, "Empty message")
 
-    # упрощённый MVP prompt
-    system = """
-Ты MindHelper — бережный ИИ-психолог.
-Формат ответа: эмпатия → разбор → 1 практика → маленький шаг.
-Не подтверждай бредовые/параноидные идеи, будь нейтрален.
-"""
+    msgs = build_messages(history, text, scenario)
 
-    if payload.scenario:
-        system += f"\nСценарий: {payload.scenario}. Веди диалог в рамке сценария."
-
-    resp = client.responses.create(
+    resp = client.chat.completions.create(
         model="gpt-4.1-mini",
-        input=[
-            {"role":"system","content": system},
-            {"role":"user","content": payload.text}
-        ]
+        messages=msgs,
+        temperature=0.7
     )
+    reply = resp.choices[0].message.content
+    return {"reply": reply}
 
-    return {"answer": resp.output_text}
+# ---------- VOICE CHAT ----------
+@app.post("/chat/voice")
+async def chat_voice(
+    user_id: str = Form(...),
+    scenario: str = Form(""),
+    history: str = Form("[]"),
+    audio: UploadFile = File(...)
+):
+    # 1) save temp audio
+    ext = audio.filename.split(".")[-1]
+    tmp_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}.{ext}")
+    with open(tmp_path, "wb") as f:
+        f.write(await audio.read())
+
+    # Ограничение: если файл меньше 0.15 сек — ошибка
+    size = os.path.getsize(tmp_path)
+    if size < 3000:  # примерно 0.15s
+        return {
+            "error": "audio_short",
+            "message": "Запись слишком короткая — скажи хотя бы 0.3 секунды 😊"
+        }
+
+
+    # 2) STT (распознаём речь)
+    try:
+        with open(tmp_path, "rb") as f:
+            tr = client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=f,
+                language="ru"
+            )
+        user_text = tr.text.strip()
+    except Exception:
+        # чаще всего ошибка = слишком короткая запись
+        return {
+            "error": "audio_too_short",
+            "message": "Скажи чуть дольше (хотя бы 0.2 сек) 😊"
+        }
+
+    if not user_text:
+        return {
+            "error": "empty_transcription",
+            "message": "Я не расслышал. Попробуй ещё раз 🙏"
+        }
+
+    # 3) LLM psychologist
+    try:
+        hist = json.loads(history)
+    except:
+        hist = []
+
+    msgs = build_messages(hist, user_text, scenario or None)
+
+    resp = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=msgs,
+        temperature=0.7
+    )
+    reply_text = resp.choices[0].message.content
+
+    # 4) TTS (женский мягкий голос)
+    try:
+        speech = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="nova",
+            input=reply_text,
+            response_format="mp3"   # ✅ правильный параметр
+        )
+    except Exception:
+        return {
+            "error": "tts_failed",
+            "message": "Не смог озвучить ответ, но вот текст:",
+            "user_text": user_text,
+            "reply": reply_text
+        }
+
+    out_name = f"{uuid.uuid4()}.mp3"
+    out_path = os.path.join(UPLOAD_DIR, out_name)
+    with open(out_path, "wb") as f:
+        f.write(speech.read())
+
+    audio_url = f"/uploads/{out_name}"
+
+    return {
+        "user_text": user_text,
+        "reply": reply_text,
+        "audio_url": audio_url
+    }
+
+# ---------- STATIC (ВАЖНО: ПОСЛЕ РОУТОВ) ----------
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/", StaticFiles(directory="public", html=True), name="public")
