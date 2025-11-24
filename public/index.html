@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <link rel="icon" href="data:,">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>MindHelper</title>
@@ -9,7 +8,10 @@
   <!-- Telegram SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- IMPORTANT: cache-bust for Telegram -->
+  <!-- отключаем favicon, чтобы не спамило логами -->
+  <link rel="icon" href="data:,">
+
+  <!-- cache-bust для TG -->
   <link rel="stylesheet" href="./styles.css?v=3" />
 </head>
 <body>
@@ -21,7 +23,7 @@
       <div class="subtitle">ИИ-психолог 24/7</div>
     </header>
 
-    <!-- MAIN SCREENS -->
+    <!-- SCREENS -->
     <main class="screens">
 
       <!-- HOME -->
@@ -53,17 +55,16 @@
         </div>
       </section>
 
-      <!-- DIARY -->
+      <!-- DIARY LIST -->
       <section class="screen" id="screen-diary">
         <div class="screen-header">
           <h2>📓 Дневник эмоций</h2>
           <button class="btn" id="btn-add-entry">+ Записать эмоцию</button>
         </div>
-
         <div id="diary-list" class="list"></div>
       </section>
 
-      <!-- ADD DIARY -->
+      <!-- DIARY ADD -->
       <section class="screen" id="screen-diary-add">
         <div class="screen-header">
           <h2>✍️ Новая запись</h2>
@@ -115,9 +116,9 @@
           <button class="btn ghost" id="btn-clear-chat">Сброс</button>
         </div>
 
-        <!-- ROBOT (PNG) -->
+        <!-- ROBOT -->
         <div class="robot-wrap">
-          <img id="robot-avatar" src="./robot.png?v=3" alt="MindHelper Robot" />
+          <img id="robot-avatar" src="./robot.png?v=3" alt="MindHelper Robot"/>
           <div class="robot-caption" id="robot-caption">Я слушаю тебя…</div>
         </div>
 
@@ -151,7 +152,7 @@
 
   </div>
 
-  <!-- IMPORTANT: cache-bust for Telegram -->
+  <!-- cache-bust для TG -->
   <script src="./app.js?v=3"></script>
 </body>
 </html>

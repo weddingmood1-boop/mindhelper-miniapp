@@ -1,10 +1,7 @@
 // ===============================
 // CONFIG
 // ===============================
-
 const API_BASE = window.location.origin;
-// Render: https://mindhelper-miniapp.onrender.com
-// Local:  http://127.0.0.1:8000
 
 let tg = window.Telegram?.WebApp;
 let userId = null;
@@ -23,7 +20,7 @@ if (tg) {
   }
 }
 
-// DEV MODE локально
+// DEV MODE для веба
 if (!userId) {
   userId = 999999;
   console.log("DEV MODE enabled");
@@ -45,17 +42,22 @@ function showScreen(id) {
   });
 }
 
-document.querySelectorAll("[data-nav]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const nav = btn.dataset.nav;
-    if (nav) {
+function bindNavButtons() {
+  document.querySelectorAll("[data-nav]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const nav = btn.dataset.nav;
+      if (!nav) return;
+
       if (nav === "diary") loadDiary();
       showScreen(nav);
-    }
+    });
   });
-});
+}
 
-showScreen("home");
+document.addEventListener("DOMContentLoaded", () => {
+  bindNavButtons();
+  showScreen("home");
+});
 
 // ===============================
 // DIARY — LIST
@@ -205,12 +207,6 @@ async function sendTextMessage() {
     });
 
     const data = await resp.json();
-    if (data.error) {
-      appendMessage("assistant", data.message || "Ошибка голосового ввода");
-      if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
-      return;
-    }
-
     appendMessage("assistant", data.reply);
     if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
     chatHistory.push({role: "assistant", content: data.reply});
@@ -257,66 +253,56 @@ function stopRecording(){
   if (robotCaption) robotCaption.innerText = "Думаю…";
 }
 
+// ---- FIXED sendVoice (no duplicates, no undefined) ----
 async function sendVoice(blob) {
-    if (!blob) return;
+  if (!blob) return;
 
-    // предотвращаем двойной вызов
-    if (window._voiceSending) return;
-    window._voiceSending = true;
+  if (window._voiceSending) return;
+  window._voiceSending = true;
 
-    appendMessage("user", "🎙 Голосовое сообщение отправлено");
+  appendMessage("user", "🎙 Голосовое сообщение отправлено");
 
-    if (robotCaption) robotCaption.innerText = "Слушаю…";
+  const form = new FormData();
+  form.append("audio", blob, "voice.webm");
+  form.append("user_id", String(userId));
+  form.append("scenario", currentScenario || "");
+  form.append("history", JSON.stringify(chatHistory));
 
-    const form = new FormData();
-    form.append("audio", blob, "voice.webm");
-    form.append("user_id", userId);
-    form.append("scenario", currentScenario || "");
-    form.append("history", JSON.stringify(chatHistory));
+  let data = null;
 
-    let data = null;
-
-    try {
-        const resp = await fetch(`${API_BASE}/chat/voice`, {
-            method: "POST",
-            body: form
-        });
-
-        data = await resp.json();
-
-    } catch (err) {
-        appendMessage("assistant", "Ошибка связи с сервером");
-        window._voiceSending = false;
-        return;
-    }
-
-    // если ошибка STT
-    if (data.error) {
-        appendMessage("assistant", data.message || "Ошибка голосового сообщения");
-        robotCaption.innerText = "Я слушаю тебя…";
-        window._voiceSending = false;
-        return;
-    }
-
-    // вывод текста
-    appendMessage("assistant", data.reply);
-    chatHistory.push({ role: "assistant", content: data.reply });
-
-    // озвучка
-    if (data.audio_url) {
-        const audio = new Audio(data.audio_url);
-        audio.play().catch(() => {});
-    }
-
-    robotCaption.innerText = "Я слушаю тебя…";
+  try {
+    const resp = await fetch(`${API_BASE}/chat/voice`, {
+      method: "POST",
+      body: form
+    });
+    data = await resp.json();
+  } catch (e) {
+    appendMessage("assistant", "Ошибка связи с сервером");
+    if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
     window._voiceSending = false;
-}
-
-  }catch(e){
-    console.log(e);
-    appendMessage("assistant", "Ошибка голосового запроса.");
-    if (robotCaption) robotCaption.innerText = "Ошибка";
+    return;
   }
+
+  if (data.error) {
+    appendMessage("assistant", data.message || "Ошибка голосового сообщения");
+    if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
+    window._voiceSending = false;
+    return;
+  }
+
+  appendMessage("assistant", data.reply);
+  chatHistory.push({ role: "assistant", content: data.reply });
+
+  if (data.audio_url) {
+    const audio = new Audio(data.audio_url);
+    audio.onplay = () => { if (robotCaption) robotCaption.innerText = "Говорю…"; };
+    audio.onended = () => { if (robotCaption) robotCaption.innerText = "Я слушаю тебя…"; };
+    audio.play().catch(()=>{});
+  } else {
+    if (robotCaption) robotCaption.innerText = "Я слушаю тебя…";
+  }
+
+  window._voiceSending = false;
 }
 
 // удержание на кнопке
